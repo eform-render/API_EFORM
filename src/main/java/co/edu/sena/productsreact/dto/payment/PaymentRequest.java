@@ -15,7 +15,8 @@ public record PaymentRequest(
         String paymentMethod,
         @Positive(message = "El monto debe ser mayor que cero")
         Double amount,
-        List<CartItemRequest> items
+        List<CartItemRequest> items,
+        String deliveryMethod
 ) {
 
     public record CartItemRequest(

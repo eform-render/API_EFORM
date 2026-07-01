@@ -95,6 +95,14 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- iText7 for PDF generation -->
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>itext7-core</artifactId>
+            <version>7.2.5</version>
+            <type>pom</type>
+        </dependency>
+
         <!-- Test support -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

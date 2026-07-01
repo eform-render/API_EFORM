@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Base64;
 
 @Service
 public class InvoiceMailService {
@@ -25,7 +26,7 @@ public class InvoiceMailService {
     private RestTemplate restTemplate;
 
     @Autowired
-    private InvoiceService invoiceService;
+    private PdfInvoiceService pdfInvoiceService;
 
     @Value("${app.mail.from:noreply@eform.com}")
     private String fromAddress;
@@ -42,27 +43,29 @@ public class InvoiceMailService {
         log.info("Iniciando envío de factura para payment={}", payment.getId());
 
         try {
-            log.debug("Generando HTML de factura para payment={}", payment.getId());
-            String invoiceHtml = invoiceService.generateInvoiceHtml(payment);
-            log.debug("HTML de factura generado exitosamente para payment={}", payment.getId());
+            log.debug("Generando PDF de factura para payment={}", payment.getId());
+            byte[] pdfBytes = pdfInvoiceService.generateInvoicePdf(payment);
+            log.debug("PDF de factura generado exitosamente para payment={}, tamaño={} bytes", payment.getId(), pdfBytes.length);
 
             try {
-                sendEmail(payment.getCustomerEmail(),
+                sendEmailWithPdf(payment.getCustomerEmail(),
                         "Factura de tu pedido #" + payment.getId() + " - EFORM",
-                        invoiceHtml);
+                        pdfBytes);
                 log.info("Factura enviada exitosamente a {} para payment={}", payment.getCustomerEmail(), payment.getId());
             } catch (Exception e) {
                 log.error("Error enviando factura para payment={}: {}", payment.getId(), e.getMessage(), e);
             }
         } catch (Exception e) {
-            log.error("Error generando HTML de factura para payment={}: {}", payment.getId(), e.getMessage(), e);
+            log.error("Error generando PDF de factura para payment={}: {}", payment.getId(), e.getMessage(), e);
         }
     }
 
-    private void sendEmail(String toEmail, String subject, String htmlContent) {
+    private void sendEmailWithPdf(String toEmail, String subject, byte[] pdfBytes) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("api-key", brevoApiKey);
+
+        String base64Pdf = Base64.getEncoder().encodeToString(pdfBytes);
 
         Map<String, Object> body = Map.of(
                 "sender", Map.of(
@@ -73,13 +76,19 @@ public class InvoiceMailService {
                         Map.of("email", toEmail)
                 ),
                 "subject", subject,
-                "htmlContent", htmlContent
+                "htmlContent", "<p>Adjuntamos la factura de tu compra en EFORM.</p><p>Gracias por confiar en nosotros.</p>",
+                "attachment", List.of(
+                        Map.of(
+                                "content", base64Pdf,
+                                "name", "Factura_" + System.currentTimeMillis() + ".pdf"
+                        )
+                )
         );
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
         try {
-            log.debug("Enviando email a {} con asunto: {}", toEmail, subject);
+            log.debug("Enviando email con PDF a {} con asunto: {}", toEmail, subject);
 
             ResponseEntity<String> response = restTemplate.exchange(
                     "https://api.brevo.com/v3/smtp/email",
@@ -88,9 +97,9 @@ public class InvoiceMailService {
                     String.class
             );
 
-            log.info("Email enviado exitosamente a {} - Status: {}", toEmail, response.getStatusCode());
+            log.info("Email con PDF enviado exitosamente a {} - Status: {}", toEmail, response.getStatusCode());
         } catch (Exception e) {
-            log.error("Error enviando email a {}: {} - {}", toEmail, e.getClass().getSimpleName(), e.getMessage(), e);
+            log.error("Error enviando email con PDF a {}: {} - {}", toEmail, e.getClass().getSimpleName(), e.getMessage(), e);
         }
     }
 }

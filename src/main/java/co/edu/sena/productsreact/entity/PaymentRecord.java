@@ -32,6 +32,12 @@ public class PaymentRecord {
     @Column(name = "payment_reference_code", length = 50)
     private String paymentReferenceCode;
 
+    @Column(name = "delivery_method", length = 50)
+    private String deliveryMethod = "domicilio";
+
+    @Column(name = "shipping_cost")
+    private Double shippingCost = 0.0;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -113,5 +119,21 @@ public class PaymentRecord {
 
     public void setPaymentReferenceCode(String paymentReferenceCode) {
         this.paymentReferenceCode = paymentReferenceCode;
+    }
+
+    public String getDeliveryMethod() {
+        return deliveryMethod;
+    }
+
+    public void setDeliveryMethod(String deliveryMethod) {
+        this.deliveryMethod = deliveryMethod;
+    }
+
+    public Double getShippingCost() {
+        return shippingCost;
+    }
+
+    public void setShippingCost(Double shippingCost) {
+        this.shippingCost = shippingCost;
     }
 }

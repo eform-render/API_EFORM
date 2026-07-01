@@ -31,6 +31,16 @@ public class PaymentService {
                 LocalDateTime.now()
         );
 
+        // Establecer método de entrega y costo de domicilio
+        String deliveryMethod = request.deliveryMethod() != null ? request.deliveryMethod() : "domicilio";
+        record.setDeliveryMethod(deliveryMethod);
+
+        if ("recoge".equalsIgnoreCase(deliveryMethod)) {
+            record.setShippingCost(0.0);
+        } else {
+            record.setShippingCost(5500.0);
+        }
+
         if ("pago en sede".equalsIgnoreCase(request.paymentMethod())) {
             record.setPaymentReferenceCode(paymentReferenceService.generatePaymentReference());
         }
