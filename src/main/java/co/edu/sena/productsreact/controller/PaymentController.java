@@ -48,10 +48,8 @@ public class PaymentController {
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<co.edu.sena.productsreact.entity.PaymentRecord> updatePaymentStatus(
             @PathVariable Long id,
-            @RequestBody java.util.Map<String, String> request) {
-        String newStatus = request.get("status");
-        String observation = request.get("observation");
-        var updated = paymentService.updateStatus(id, newStatus, observation);
+            @Valid @RequestBody co.edu.sena.productsreact.dto.payment.UpdatePaymentStatusRequest request) {
+        var updated = paymentService.updateStatus(id, request.status(), request.observation());
         return ResponseEntity.ok(updated);
     }
 
