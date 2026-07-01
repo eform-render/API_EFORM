@@ -61,4 +61,13 @@ public class PaymentController {
         var orders = paymentService.getOrdersByEmail(userDetails.getUsername());
         return ResponseEntity.ok(orders);
     }
+
+    @GetMapping("/{id}/details")
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
+    public ResponseEntity<co.edu.sena.productsreact.dto.payment.OrderDetailsResponse> getOrderDetails(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        var orderDetails = paymentService.getOrderDetails(id, userDetails.getUsername());
+        return ResponseEntity.ok(orderDetails);
+    }
 }

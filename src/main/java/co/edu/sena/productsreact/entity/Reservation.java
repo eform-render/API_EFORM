@@ -27,6 +27,10 @@ public class Reservation {
     @Column(name = "reserved_by")
     private String reservedBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_id")
+    private PaymentRecord payment;
+
     public Reservation() {
     }
 
@@ -86,5 +90,13 @@ public class Reservation {
 
     public void setReservedBy(String reservedBy) {
         this.reservedBy = reservedBy;
+    }
+
+    public PaymentRecord getPayment() {
+        return payment;
+    }
+
+    public void setPayment(PaymentRecord payment) {
+        this.payment = payment;
     }
 }

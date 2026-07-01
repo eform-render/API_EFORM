@@ -14,4 +14,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findByProductOrderByCreatedAtAsc(Product product);
 
     List<Reservation> findByCreatedAtBefore(LocalDateTime time);
+
+    List<Reservation> findByPaymentId(Long paymentId);
+
+    List<Reservation> findByReservedByAndCreatedAtAfter(String reservedBy, LocalDateTime createdAt);
 }

@@ -16,6 +16,7 @@ public class PaymentService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRecordRepository paymentRecordRepository;
+    private final co.edu.sena.productsreact.repository.ReservationRepository reservationRepository;
     private final OrderNotificationService orderNotificationService;
     private final PaymentReferenceService paymentReferenceService;
     private final PaymentConfirmationMailService paymentConfirmationMailService;
@@ -35,6 +36,19 @@ public class PaymentService {
         }
 
         PaymentRecord saved = paymentRecordRepository.save(record);
+
+        // Vincular Reservations del cliente con este pago
+        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+        var reservations = reservationRepository.findByReservedByAndCreatedAtAfter(
+            request.customerEmail(), fiveMinutesAgo
+        );
+
+        for (var reservation : reservations) {
+            if (reservation.getPayment() == null) {
+                reservation.setPayment(saved);
+                reservationRepository.save(reservation);
+            }
+        }
 
         if (saved.getPaymentReferenceCode() != null) {
             paymentConfirmationMailService.sendPaymentConfirmation(saved);
@@ -91,6 +105,41 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public java.util.List<PaymentRecord> getOrdersByEmail(String email) {
         return paymentRecordRepository.findByCustomerEmailOrderByCreatedAtDesc(email);
+    }
+
+    @Transactional(readOnly = true)
+    public co.edu.sena.productsreact.dto.payment.OrderDetailsResponse getOrderDetails(Long paymentId, String userEmail) {
+        PaymentRecord payment = paymentRecordRepository.findById(paymentId)
+                .orElseThrow(() -> new co.edu.sena.productsreact.exception.ResourceNotFoundException("Pedido no encontrado"));
+
+        if (!payment.getCustomerEmail().equals(userEmail)) {
+            throw new IllegalArgumentException("No tienes permiso para ver este pedido");
+        }
+
+        var reservations = reservationRepository.findByPaymentId(paymentId);
+
+        java.util.List<co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO> items =
+            reservations.stream()
+                .map(r -> new co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO(
+                    r.getProduct().getId(),
+                    r.getProduct().getNombre(),
+                    r.getQuantity(),
+                    r.getProduct().getPrecio()
+                ))
+                .toList();
+
+        return new co.edu.sena.productsreact.dto.payment.OrderDetailsResponse(
+            payment.getId(),
+            payment.getCustomerName(),
+            payment.getCustomerEmail(),
+            payment.getPaymentMethod(),
+            payment.getAmount(),
+            payment.getStatus(),
+            payment.getObservation(),
+            payment.getPaymentReferenceCode(),
+            payment.getCreatedAt(),
+            items
+        );
     }
 
 }
