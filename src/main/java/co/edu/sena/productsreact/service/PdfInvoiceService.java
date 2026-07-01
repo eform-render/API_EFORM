@@ -176,11 +176,11 @@ public class PdfInvoiceService {
     private void addItemsTable(Document document, PaymentRecord payment, PdfFont boldFont, PdfFont regularFont) {
         List<Reservation> items = reservationRepository.findByPaymentId(payment.getId());
 
-        Table itemsTable = new Table(UnitValue.createPercentArray(new float[]{10, 40, 10, 15, 15, 15}));
+        Table itemsTable = new Table(UnitValue.createPercentArray(new float[]{10, 50, 10, 15, 15}));
         itemsTable.setWidth(UnitValue.createPercentValue(100));
 
         // Encabezados
-        String[] headers = {"ITEM", "DESCRIPCIÓN", "CANT.", "PRECIO UNITARIO", "IVA", "SUBTOTAL"};
+        String[] headers = {"ITEM", "DESCRIPCIÓN", "CANT.", "PRECIO UNITARIO", "SUBTOTAL"};
         for (String header : headers) {
             Cell headerCell = new Cell()
                     .add(new Paragraph(header).setFont(boldFont).setFontSize(10).setTextAlignment(TextAlignment.CENTER))
@@ -197,20 +197,19 @@ public class PdfInvoiceService {
         for (Reservation item : items) {
             double unitPrice = item.getProduct().getPrecio().doubleValue();
             double itemTotal = unitPrice * item.getQuantity();
-            double itemIva = itemTotal * IVA_RATE;
             subtotal += itemTotal;
 
             itemsTable.addCell(new Cell().add(new Paragraph(String.valueOf(itemNum)).setFont(regularFont).setFontSize(9)));
             itemsTable.addCell(new Cell().add(new Paragraph(item.getProduct().getNombre()).setFont(regularFont).setFontSize(9)));
             itemsTable.addCell(new Cell().add(new Paragraph(String.valueOf(item.getQuantity())).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.CENTER)));
             itemsTable.addCell(new Cell().add(new Paragraph(df.format(unitPrice)).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.RIGHT)));
-            itemsTable.addCell(new Cell().add(new Paragraph(df.format(itemIva)).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.RIGHT)));
             itemsTable.addCell(new Cell().add(new Paragraph(df.format(itemTotal)).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.RIGHT)));
 
             itemNum++;
         }
 
         document.add(itemsTable);
+        document.add(new Paragraph("* Precios incluyen IVA (19%)").setFont(regularFont).setFontSize(8).setItalic());
         document.add(new Paragraph(""));
     }
 
@@ -225,27 +224,19 @@ public class PdfInvoiceService {
         }
 
         double shippingCost = payment.getShippingCost() != null ? payment.getShippingCost() : 0.0;
-        double subtotalWithShipping = subtotal + shippingCost;
-        double iva = subtotalWithShipping * IVA_RATE;
-        double total = subtotalWithShipping + iva;
+        double total = subtotal + shippingCost;
 
         Table totalsTable = new Table(UnitValue.createPercentArray(new float[]{70, 30}));
         totalsTable.setWidth(UnitValue.createPercentValue(100));
         totalsTable.setHorizontalAlignment(HorizontalAlignment.RIGHT);
 
-        totalsTable.addCell(new Cell().add(new Paragraph("SUBTOTAL").setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
+        totalsTable.addCell(new Cell().add(new Paragraph("SUBTOTAL PRODUCTOS").setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
         totalsTable.addCell(new Cell().add(new Paragraph(df.format(subtotal)).setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
 
         if (shippingCost > 0) {
             totalsTable.addCell(new Cell().add(new Paragraph("DOMICILIO/ENVÍO").setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
             totalsTable.addCell(new Cell().add(new Paragraph(df.format(shippingCost)).setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
         }
-
-        totalsTable.addCell(new Cell().add(new Paragraph("SUBTOTAL GRAVADO").setFont(boldFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
-        totalsTable.addCell(new Cell().add(new Paragraph(df.format(subtotalWithShipping)).setFont(boldFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
-
-        totalsTable.addCell(new Cell().add(new Paragraph("IVA (19%)").setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
-        totalsTable.addCell(new Cell().add(new Paragraph(df.format(iva)).setFont(regularFont).setFontSize(10).setTextAlignment(TextAlignment.RIGHT)).setBorder(Border.NO_BORDER));
 
         totalsTable.addCell(new Cell().add(new Paragraph("TOTAL A PAGAR").setFont(boldFont).setFontSize(12).setTextAlignment(TextAlignment.RIGHT)
                 .setBackgroundColor(new com.itextpdf.kernel.colors.DeviceRgb(25, 48, 71)))
