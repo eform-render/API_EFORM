@@ -124,7 +124,7 @@ public class PaymentService {
                     r.getProduct().getId(),
                     r.getProduct().getNombre(),
                     r.getQuantity(),
-                    r.getProduct().getPrecio()
+                    r.getProduct().getPrecio().doubleValue()
                 ))
                 .toList();
 
