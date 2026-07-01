@@ -37,15 +37,19 @@ public class PaymentService {
 
         PaymentRecord saved = paymentRecordRepository.save(record);
 
-        // Vincular Reservations del cliente con este pago
-        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
-        var reservations = reservationRepository.findByReservedByAndCreatedAtAfter(
-            request.customerEmail(), fiveMinutesAgo
-        );
+        // Vincular items del carrito con este pago
+        if (request.items() != null && !request.items().isEmpty()) {
+            for (var item : request.items()) {
+                var reservation = new co.edu.sena.productsreact.entity.Reservation();
+                var product = new co.edu.sena.productsreact.entity.Product();
+                product.setId(item.productId());
 
-        for (var reservation : reservations) {
-            if (reservation.getPayment() == null) {
+                reservation.setProduct(product);
+                reservation.setQuantity(item.quantity());
                 reservation.setPayment(saved);
+                reservation.setCreatedAt(LocalDateTime.now());
+                reservation.setReservedBy(request.customerEmail());
+
                 reservationRepository.save(reservation);
             }
         }

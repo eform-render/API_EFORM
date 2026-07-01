@@ -3,6 +3,7 @@ package co.edu.sena.productsreact.dto.payment;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.util.List;
 
 public record PaymentRequest(
         @NotBlank(message = "El nombre completo es obligatorio")
@@ -13,6 +14,13 @@ public record PaymentRequest(
         @NotBlank(message = "El método de pago es obligatorio")
         String paymentMethod,
         @Positive(message = "El monto debe ser mayor que cero")
-        Double amount
+        Double amount,
+        List<CartItemRequest> items
 ) {
+
+    public record CartItemRequest(
+            Long productId,
+            Integer quantity
+    ) {
+    }
 }
