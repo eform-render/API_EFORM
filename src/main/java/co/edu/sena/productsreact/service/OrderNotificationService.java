@@ -35,18 +35,23 @@ public class OrderNotificationService {
             return;
         }
 
-        if ("ENVIADO".equals(payment.getStatus())) {
-            invoiceMailService.sendInvoice(payment);
-            return;
-        }
-
-        String statusLabel = getStatusLabel(payment.getStatus());
-        String html = buildEmailContent(payment, statusLabel);
-
         try {
-            sendEmail(payment.getCustomerEmail(), "Cambio de estado en tu pedido #" + payment.getId(), html);
+            if ("ENVIADO".equals(payment.getStatus())) {
+                invoiceMailService.sendInvoice(payment);
+                return;
+            }
+
+            String statusLabel = getStatusLabel(payment.getStatus());
+            String html = buildEmailContent(payment, statusLabel);
+
+            try {
+                sendEmail(payment.getCustomerEmail(), "Cambio de estado en tu pedido #" + payment.getId(), html);
+            } catch (Exception e) {
+                System.err.println("Error enviando email de notificación: " + e.getMessage());
+                e.printStackTrace();
+            }
         } catch (Exception e) {
-            System.err.println("Error enviando email de notificación: " + e.getMessage());
+            System.err.println("Error en notificación de cambio de estado: " + e.getMessage());
             e.printStackTrace();
         }
     }

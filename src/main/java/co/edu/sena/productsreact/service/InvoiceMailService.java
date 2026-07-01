@@ -35,14 +35,19 @@ public class InvoiceMailService {
             return;
         }
 
-        String invoiceHtml = invoiceService.generateInvoiceHtml(payment);
-
         try {
-            sendEmail(payment.getCustomerEmail(),
-                    "Factura de tu pedido #" + payment.getId() + " - EFORM",
-                    invoiceHtml);
+            String invoiceHtml = invoiceService.generateInvoiceHtml(payment);
+
+            try {
+                sendEmail(payment.getCustomerEmail(),
+                        "Factura de tu pedido #" + payment.getId() + " - EFORM",
+                        invoiceHtml);
+            } catch (Exception e) {
+                System.err.println("Error enviando factura: " + e.getMessage());
+                e.printStackTrace();
+            }
         } catch (Exception e) {
-            System.err.println("Error enviando factura: " + e.getMessage());
+            System.err.println("Error generando HTML de factura: " + e.getMessage());
             e.printStackTrace();
         }
     }
