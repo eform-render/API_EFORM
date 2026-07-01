@@ -60,4 +60,49 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserDto> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> request) {
+        try {
+            String username = request.get("username");
+            String email = request.get("email");
+            UserDto updated = userService.updateProfile(userDetails.getUsername(), username, email);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.status(400).build();
+        }
+    }
+
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> request) {
+        try {
+            String currentPassword = request.get("currentPassword");
+            String newPassword = request.get("newPassword");
+            userService.changePassword(userDetails.getUsername(), currentPassword, newPassword);
+            return ResponseEntity.ok(Map.of("message", "Contraseña actualizada exitosamente"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(400).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error al cambiar la contraseña"));
+        }
+    }
+
+    @PostMapping("/avatar")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserDto> uploadAvatar(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        try {
+            UserDto updated = userService.uploadAvatar(userDetails.getUsername(), file);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.status(400).build();
+        }
+    }
 }
