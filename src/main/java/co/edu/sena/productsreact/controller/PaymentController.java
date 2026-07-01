@@ -1,5 +1,6 @@
 package co.edu.sena.productsreact.controller;
 
+// Controlador de pagos actualizado
 import co.edu.sena.productsreact.dto.payment.PaymentRequest;
 import co.edu.sena.productsreact.service.PaymentService;
 import jakarta.validation.Valid;
