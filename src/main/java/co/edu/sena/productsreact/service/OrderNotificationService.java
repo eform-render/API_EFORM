@@ -10,12 +10,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class OrderNotificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderNotificationService.class);
 
     @Autowired
     private RestTemplate restTemplate;
@@ -30,13 +34,16 @@ public class OrderNotificationService {
     private String brevoApiKey;
 
     public void notifyOrderStatusChange(PaymentRecord payment) {
+        log.info("Iniciando notificación de cambio de estado para payment={}, status={}", payment.getId(), payment.getStatus());
+
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
-            System.out.println("BREVO API KEY no configurado. Email no enviado.");
+            log.warn("BREVO API KEY no configurado. Email no enviado para payment={}", payment.getId());
             return;
         }
 
         try {
             if ("ENVIADO".equals(payment.getStatus())) {
+                log.info("Estado ENVIADO detectado para payment={}. Enviando factura...", payment.getId());
                 invoiceMailService.sendInvoice(payment);
                 return;
             }
@@ -47,12 +54,10 @@ public class OrderNotificationService {
             try {
                 sendEmail(payment.getCustomerEmail(), "Cambio de estado en tu pedido #" + payment.getId(), html);
             } catch (Exception e) {
-                System.err.println("Error enviando email de notificación: " + e.getMessage());
-                e.printStackTrace();
+                log.error("Error enviando email de notificación para payment={}: {}", payment.getId(), e.getMessage(), e);
             }
         } catch (Exception e) {
-            System.err.println("Error en notificación de cambio de estado: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error en notificación de cambio de estado para payment={}: {}", payment.getId(), e.getMessage(), e);
         }
     }
 
@@ -115,10 +120,7 @@ public class OrderNotificationService {
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
         try {
-            System.out.println("========== ENVIANDO NOTIFICACIÓN ==========");
-            System.out.println("FROM: " + fromAddress);
-            System.out.println("TO: " + toEmail);
-            System.out.println("SUBJECT: " + subject);
+            log.debug("Enviando notificación de estado a {}", toEmail);
 
             ResponseEntity<String> response = restTemplate.exchange(
                     "https://api.brevo.com/v3/smtp/email",
@@ -127,13 +129,9 @@ public class OrderNotificationService {
                     String.class
             );
 
-            System.out.println("EMAIL ENVIADO OK");
-            System.out.println("STATUS: " + response.getStatusCode());
+            log.info("Notificación de estado enviada exitosamente a {} - Status: {}", toEmail, response.getStatusCode());
         } catch (Exception e) {
-            System.err.println("ERROR ENVIANDO EMAIL");
-            System.err.println("TIPO: " + e.getClass().getName());
-            System.err.println("MENSAJE: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error enviando notificación a {}: {} - {}", toEmail, e.getClass().getSimpleName(), e.getMessage(), e);
         }
     }
 }

@@ -10,12 +10,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class InvoiceMailService {
+
+    private static final Logger log = LoggerFactory.getLogger(InvoiceMailService.class);
 
     @Autowired
     private RestTemplate restTemplate;
@@ -31,24 +35,27 @@ public class InvoiceMailService {
 
     public void sendInvoice(PaymentRecord payment) {
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
-            System.out.println("BREVO API KEY no configurado. Email no enviado.");
+            log.warn("BREVO API KEY no configurado. Email de factura no enviado para payment={}", payment.getId());
             return;
         }
 
+        log.info("Iniciando envío de factura para payment={}", payment.getId());
+
         try {
+            log.debug("Generando HTML de factura para payment={}", payment.getId());
             String invoiceHtml = invoiceService.generateInvoiceHtml(payment);
+            log.debug("HTML de factura generado exitosamente para payment={}", payment.getId());
 
             try {
                 sendEmail(payment.getCustomerEmail(),
                         "Factura de tu pedido #" + payment.getId() + " - EFORM",
                         invoiceHtml);
+                log.info("Factura enviada exitosamente a {} para payment={}", payment.getCustomerEmail(), payment.getId());
             } catch (Exception e) {
-                System.err.println("Error enviando factura: " + e.getMessage());
-                e.printStackTrace();
+                log.error("Error enviando factura para payment={}: {}", payment.getId(), e.getMessage(), e);
             }
         } catch (Exception e) {
-            System.err.println("Error generando HTML de factura: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error generando HTML de factura para payment={}: {}", payment.getId(), e.getMessage(), e);
         }
     }
 
@@ -72,9 +79,7 @@ public class InvoiceMailService {
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
         try {
-            System.out.println("========== ENVIANDO FACTURA ==========");
-            System.out.println("TO: " + toEmail);
-            System.out.println("SUBJECT: " + subject);
+            log.debug("Enviando email a {} con asunto: {}", toEmail, subject);
 
             ResponseEntity<String> response = restTemplate.exchange(
                     "https://api.brevo.com/v3/smtp/email",
@@ -83,10 +88,9 @@ public class InvoiceMailService {
                     String.class
             );
 
-            System.out.println("FACTURA ENVIADA OK - STATUS: " + response.getStatusCode());
+            log.info("Email enviado exitosamente a {} - Status: {}", toEmail, response.getStatusCode());
         } catch (Exception e) {
-            System.err.println("ERROR ENVIANDO FACTURA: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error enviando email a {}: {} - {}", toEmail, e.getClass().getSimpleName(), e.getMessage(), e);
         }
     }
 }

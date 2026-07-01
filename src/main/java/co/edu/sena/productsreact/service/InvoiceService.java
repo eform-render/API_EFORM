@@ -13,7 +13,7 @@ public class InvoiceService {
         String formattedDate = payment.getCreatedAt().format(dateFormatter);
         String currencyFormat = String.format("$%,.0f COP", payment.getAmount());
 
-        return """
+        return String.format("""
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -28,7 +28,7 @@ public class InvoiceService {
                         .detail-box { background: #f5f5f5; padding: 15px; border-radius: 5px; }
                         .detail-box h3 { margin-top: 0; color: #007bff; }
                         .detail-box p { margin: 5px 0; }
-                        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                        .items-table { width: 100%%; border-collapse: collapse; margin: 20px 0; }
                         .items-table th { background: #007bff; color: white; padding: 10px; text-align: left; }
                         .items-table td { padding: 10px; border-bottom: 1px solid #ddd; }
                         .items-table tr:nth-child(even) { background: #f9f9f9; }
@@ -85,7 +85,7 @@ public class InvoiceService {
                     </div>
                 </body>
                 </html>
-                """.formatted(
+                """,
                 payment.getId(),
                 payment.getCustomerName(),
                 payment.getCustomerEmail(),
