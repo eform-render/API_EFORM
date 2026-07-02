@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
+import static co.edu.sena.productsreact.util.AppClock.nowBogota;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +30,7 @@ public class PaymentService {
                 request.customerEmail(),
                 request.paymentMethod(),
                 request.amount(),
-                LocalDateTime.now()
+                nowBogota()
         );
 
         // Establecer método de entrega y costo de domicilio
@@ -59,7 +59,7 @@ public class PaymentService {
                 reservation.setProduct(product);
                 reservation.setQuantity(item.quantity());
                 reservation.setPayment(saved);
-                reservation.setCreatedAt(LocalDateTime.now());
+                reservation.setCreatedAt(nowBogota());
                 reservation.setReservedBy(request.customerEmail());
 
                 reservationRepository.save(reservation);

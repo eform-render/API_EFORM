@@ -7,7 +7,6 @@ import co.edu.sena.productsreact.exception.ResourceNotFoundException;
 import co.edu.sena.productsreact.repository.ProductRepository;
 import co.edu.sena.productsreact.repository.ReservationRepository;
 import co.edu.sena.productsreact.entity.Reservation;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -138,7 +137,7 @@ public class ProductService {
         }
 
         // create reservation and decrement stock
-        Reservation r = new Reservation(product, quantity, LocalDateTime.now(), sessionId, reservedBy);
+        Reservation r = new Reservation(product, quantity, co.edu.sena.productsreact.util.AppClock.nowBogota(), sessionId, reservedBy);
         reservationRepository.save(r);
 
         product.setStock(current - quantity);
