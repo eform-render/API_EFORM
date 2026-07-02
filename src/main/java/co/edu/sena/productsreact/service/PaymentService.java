@@ -6,6 +6,7 @@ import co.edu.sena.productsreact.repository.PaymentRecordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 
@@ -20,9 +21,10 @@ public class PaymentService {
     private final OrderNotificationService orderNotificationService;
     private final PaymentReferenceService paymentReferenceService;
     private final PaymentConfirmationMailService paymentConfirmationMailService;
+    private final PasarelaGatewayService pasarelaGatewayService;
 
     @Transactional
-    public PaymentRecord save(PaymentRequest request) {
+    public PaymentRecord save(PaymentRequest request, MultipartFile comprobante) {
         PaymentRecord record = new PaymentRecord(
                 request.customerName(),
                 request.customerEmail(),
@@ -66,6 +68,25 @@ public class PaymentService {
 
         if (saved.getPaymentReferenceCode() != null) {
             paymentConfirmationMailService.sendPaymentConfirmation(saved);
+        }
+
+        if (pasarelaGatewayService.requiereComprobante(request.paymentMethod())) {
+            if (comprobante == null || comprobante.isEmpty()) {
+                log.warn("Metodo de pago {} requiere comprobante pero no se recibio ninguno para orden={}",
+                        request.paymentMethod(), saved.getId());
+            } else {
+                String externalId = pasarelaGatewayService.crearPago(
+                        saved.getId(),
+                        request.paymentMethod(),
+                        request.amount(),
+                        request.customerEmail(),
+                        comprobante
+                );
+                if (externalId != null) {
+                    saved.setExternalPaymentId(externalId);
+                    saved = paymentRecordRepository.save(saved);
+                }
+            }
         }
 
         return saved;
@@ -121,6 +142,15 @@ public class PaymentService {
             payment.setEstimatedDeliveryTime(estimatedDeliveryTime);
         }
         PaymentRecord updated = paymentRecordRepository.save(payment);
+
+        // Sincronizar con la pasarela externa si el pago se creo alla
+        if (updated.getExternalPaymentId() != null) {
+            if ("CONFIRMADO".equals(newStatus)) {
+                pasarelaGatewayService.aprobarPago(updated.getExternalPaymentId());
+            } else if ("CANCELADO".equals(newStatus)) {
+                pasarelaGatewayService.rechazarPago(updated.getExternalPaymentId());
+            }
+        }
 
         // Enviar email de notificación
         orderNotificationService.notifyOrderStatusChange(updated);

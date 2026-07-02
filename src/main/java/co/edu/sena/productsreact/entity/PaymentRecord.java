@@ -48,6 +48,9 @@ public class PaymentRecord {
     @Column(name = "estimated_delivery_time", length = 50)
     private String estimatedDeliveryTime;
 
+    @Column(name = "external_payment_id", length = 100)
+    private String externalPaymentId;
+
     public PaymentRecord() {
     }
 
@@ -158,5 +161,13 @@ public class PaymentRecord {
 
     public void setEstimatedDeliveryTime(String estimatedDeliveryTime) {
         this.estimatedDeliveryTime = estimatedDeliveryTime;
+    }
+
+    public String getExternalPaymentId() {
+        return externalPaymentId;
+    }
+
+    public void setExternalPaymentId(String externalPaymentId) {
+        this.externalPaymentId = externalPaymentId;
     }
 }
