@@ -96,7 +96,7 @@ public class UserService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        if (file.isEmpty()) {
+        if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("El archivo está vacío");
         }
 
@@ -107,7 +107,7 @@ public class UserService {
 
         String[] allowedExtensions = {"jpg", "jpeg", "png", "gif"};
         String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null) {
+        if (originalFilename == null || originalFilename.lastIndexOf(".") == -1) {
             throw new IllegalArgumentException("Nombre de archivo inválido");
         }
 
@@ -124,22 +124,28 @@ public class UserService {
             throw new IllegalArgumentException("Formato de archivo no permitido. Use: JPG, PNG, GIF");
         }
 
-        // Crear directorio si no existe
-        Path uploadsPath = Paths.get(UPLOADS_DIR);
-        Files.createDirectories(uploadsPath);
+        try {
+            // Crear directorio si no existe (con todos los directorios padres)
+            Path uploadsPath = Paths.get(UPLOADS_DIR).toAbsolutePath();
+            if (!Files.exists(uploadsPath)) {
+                Files.createDirectories(uploadsPath);
+            }
 
-        // Generar nombre único para el archivo
-        String fileName = UUID.randomUUID() + "." + fileExtension;
-        Path filePath = uploadsPath.resolve(fileName);
+            // Generar nombre único para el archivo
+            String fileName = "avatar_" + user.getId() + "_" + UUID.randomUUID() + "." + fileExtension;
+            Path filePath = uploadsPath.resolve(fileName);
 
-        // Guardar archivo
-        Files.write(filePath, file.getBytes());
+            // Guardar archivo
+            Files.write(filePath, file.getBytes());
 
-        // Actualizar URL del avatar
-        String avatarUrl = "/uploads/" + fileName;
-        user.setAvatarUrl(avatarUrl);
-        User updated = userRepository.save(user);
+            // Actualizar URL del avatar
+            String avatarUrl = "/uploads/" + fileName;
+            user.setAvatarUrl(avatarUrl);
+            User updated = userRepository.save(user);
 
-        return new UserDto(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getRole().name(), updated.getAvatarUrl());
+            return new UserDto(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getRole().name(), updated.getAvatarUrl());
+        } catch (IOException e) {
+            throw new RuntimeException("Error al guardar la imagen: " + e.getMessage(), e);
+        }
     }
 }
