@@ -50,7 +50,13 @@ public class PaymentController {
     public ResponseEntity<co.edu.sena.productsreact.entity.PaymentRecord> updatePaymentStatus(
             @PathVariable Long id,
             @Valid @RequestBody co.edu.sena.productsreact.dto.payment.UpdatePaymentStatusRequest request) {
-        var updated = paymentService.updateStatus(id, request.status(), request.observation());
+        var updated = paymentService.updateStatus(
+                id,
+                request.status(),
+                request.observation(),
+                request.estimatedDeliveryDate(),
+                request.estimatedDeliveryTime()
+        );
         return ResponseEntity.ok(updated);
     }
 

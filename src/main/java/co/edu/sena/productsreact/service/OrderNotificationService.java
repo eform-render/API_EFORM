@@ -45,6 +45,7 @@ public class OrderNotificationService {
             if ("ENVIADO".equals(payment.getStatus())) {
                 log.info("Estado ENVIADO detectado para payment={}. Enviando factura...", payment.getId());
                 invoiceMailService.sendInvoice(payment);
+                sendDeliveryInfoEmail(payment);
                 return;
             }
 
@@ -98,6 +99,40 @@ public class OrderNotificationService {
                 payment.getPaymentMethod(),
                 observationHtml
         );
+    }
+
+    private void sendDeliveryInfoEmail(PaymentRecord payment) {
+        boolean hasDate = payment.getEstimatedDeliveryDate() != null;
+        boolean hasTime = payment.getEstimatedDeliveryTime() != null && !payment.getEstimatedDeliveryTime().isBlank();
+
+        if (!hasDate && !hasTime) {
+            log.info("Sin datos de entrega para payment={}. No se envia correo de entrega.", payment.getId());
+            return;
+        }
+
+        String dateStr = hasDate
+                ? payment.getEstimatedDeliveryDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                : "Por confirmar";
+        String timeStr = hasTime ? payment.getEstimatedDeliveryTime() : "Por confirmar";
+
+        String html = """
+                <h2>Información de entrega - EFORM</h2>
+                <p>Hola %s,</p>
+                <p>Tu pedido #%d ya va en camino. Estos son los datos estimados de entrega:</p>
+                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p><strong>Fecha estimada de entrega:</strong> %s</p>
+                    <p><strong>Hora estimada:</strong> %s</p>
+                </div>
+                <p>Ten en cuenta que estos datos son aproximados y pueden variar segun la disponibilidad del repartidor.</p>
+                <p>Gracias por tu compra en EFORM.</p>
+                """.formatted(payment.getCustomerName(), payment.getId(), dateStr, timeStr);
+
+        try {
+            sendEmail(payment.getCustomerEmail(), "Información de entrega - Pedido #" + payment.getId(), html);
+            log.info("Correo de informacion de entrega enviado para payment={}", payment.getId());
+        } catch (Exception e) {
+            log.error("Error enviando informacion de entrega para payment={}: {}", payment.getId(), e.getMessage(), e);
+        }
     }
 
     private void sendEmail(String toEmail, String subject, String htmlContent) {

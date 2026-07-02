@@ -1,6 +1,7 @@
 package co.edu.sena.productsreact.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -40,6 +41,12 @@ public class PaymentRecord {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "estimated_delivery_date")
+    private LocalDate estimatedDeliveryDate;
+
+    @Column(name = "estimated_delivery_time", length = 50)
+    private String estimatedDeliveryTime;
 
     public PaymentRecord() {
     }
@@ -135,5 +142,21 @@ public class PaymentRecord {
 
     public void setShippingCost(Double shippingCost) {
         this.shippingCost = shippingCost;
+    }
+
+    public LocalDate getEstimatedDeliveryDate() {
+        return estimatedDeliveryDate;
+    }
+
+    public void setEstimatedDeliveryDate(LocalDate estimatedDeliveryDate) {
+        this.estimatedDeliveryDate = estimatedDeliveryDate;
+    }
+
+    public String getEstimatedDeliveryTime() {
+        return estimatedDeliveryTime;
+    }
+
+    public void setEstimatedDeliveryTime(String estimatedDeliveryTime) {
+        this.estimatedDeliveryTime = estimatedDeliveryTime;
     }
 }

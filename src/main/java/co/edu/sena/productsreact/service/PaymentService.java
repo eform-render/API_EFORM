@@ -101,12 +101,24 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentRecord updateStatus(Long id, String newStatus, String observation) {
+    public PaymentRecord updateStatus(
+            Long id,
+            String newStatus,
+            String observation,
+            java.time.LocalDate estimatedDeliveryDate,
+            String estimatedDeliveryTime
+    ) {
         PaymentRecord payment = paymentRecordRepository.findById(id)
                 .orElseThrow(() -> new co.edu.sena.productsreact.exception.ResourceNotFoundException("Pedido no encontrado"));
         payment.setStatus(newStatus);
         if (observation != null && !observation.isBlank()) {
             payment.setObservation(observation);
+        }
+        if (estimatedDeliveryDate != null) {
+            payment.setEstimatedDeliveryDate(estimatedDeliveryDate);
+        }
+        if (estimatedDeliveryTime != null && !estimatedDeliveryTime.isBlank()) {
+            payment.setEstimatedDeliveryTime(estimatedDeliveryTime);
         }
         PaymentRecord updated = paymentRecordRepository.save(payment);
 
