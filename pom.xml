@@ -103,6 +103,13 @@
             <type>pom</type>
         </dependency>
 
+        <!-- Cloudinary: almacenamiento de imagenes en la nube -->
+        <dependency>
+            <groupId>com.cloudinary</groupId>
+            <artifactId>cloudinary-http44</artifactId>
+            <version>1.36.0</version>
+        </dependency>
+
         <!-- Test support -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
