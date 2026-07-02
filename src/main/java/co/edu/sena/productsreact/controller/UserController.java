@@ -63,16 +63,26 @@ public class UserController {
 
     @PutMapping("/profile")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserDto> updateProfile(
+    public ResponseEntity<?> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody Map<String, String> request) {
         try {
+            if (userDetails == null) {
+                return ResponseEntity.status(401).body(Map.of("message", "Usuario no autenticado"));
+            }
             String username = request.get("username");
             String email = request.get("email");
+
+            if (username == null || username.isBlank() || email == null || email.isBlank()) {
+                return ResponseEntity.status(400).body(Map.of("message", "Username y email son requeridos"));
+            }
+
             UserDto updated = userService.updateProfile(userDetails.getUsername(), username, email);
             return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(400).body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.status(400).build();
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
         }
     }
 
@@ -82,27 +92,47 @@ public class UserController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody Map<String, String> request) {
         try {
+            if (userDetails == null) {
+                return ResponseEntity.status(401).body(Map.of("message", "Usuario no autenticado"));
+            }
+
             String currentPassword = request.get("currentPassword");
             String newPassword = request.get("newPassword");
+
+            if (currentPassword == null || currentPassword.isBlank() ||
+                newPassword == null || newPassword.isBlank()) {
+                return ResponseEntity.status(400).body(Map.of("message", "Contraseña actual y nueva son requeridas"));
+            }
+
             userService.changePassword(userDetails.getUsername(), currentPassword, newPassword);
             return ResponseEntity.ok(Map.of("message", "Contraseña actualizada exitosamente"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(400).body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("message", "Error al cambiar la contraseña"));
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
         }
     }
 
     @PostMapping("/avatar")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserDto> uploadAvatar(
+    public ResponseEntity<?> uploadAvatar(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
         try {
+            if (userDetails == null) {
+                return ResponseEntity.status(401).body(Map.of("message", "Usuario no autenticado"));
+            }
+
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.status(400).body(Map.of("message", "El archivo es requerido"));
+            }
+
             UserDto updated = userService.uploadAvatar(userDetails.getUsername(), file);
             return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(400).body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.status(400).build();
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
         }
     }
 }
