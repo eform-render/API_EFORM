@@ -123,6 +123,37 @@ public class PasarelaGatewayService {
         }
     }
 
+    public ResponseEntity<byte[]> descargarComprobante(String externalPaymentId) {
+        if (externalPaymentId == null || externalPaymentId.isBlank() || apiKey == null || apiKey.isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", apiKey);
+            HttpEntity<Void> request = new HttpEntity<>(headers);
+
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                    apiUrl + "/api/pagos/" + externalPaymentId + "/imagen",
+                    HttpMethod.GET,
+                    request,
+                    byte[].class
+            );
+
+            HttpHeaders responseHeaders = new HttpHeaders();
+            responseHeaders.setContentType(
+                    response.getHeaders().getContentType() != null
+                            ? response.getHeaders().getContentType()
+                            : MediaType.IMAGE_JPEG
+            );
+
+            return new ResponseEntity<>(response.getBody(), responseHeaders, response.getStatusCode());
+        } catch (Exception e) {
+            log.error("Error al descargar comprobante {} de la pasarela externa: {}", externalPaymentId, e.getMessage(), e);
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     public void aprobarPago(String externalPaymentId) {
         cambiarEstado(externalPaymentId, "aprobar");
     }

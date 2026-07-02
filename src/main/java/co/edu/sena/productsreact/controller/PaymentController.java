@@ -86,4 +86,10 @@ public class PaymentController {
         var orderDetails = paymentService.getOrderDetails(id, userDetails.getUsername());
         return ResponseEntity.ok(orderDetails);
     }
+
+    @GetMapping("/{id}/receipt")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<byte[]> getReceiptImage(@PathVariable Long id) {
+        return paymentService.getReceiptImage(id);
+    }
 }

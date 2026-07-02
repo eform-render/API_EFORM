@@ -159,6 +159,18 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
+    public org.springframework.http.ResponseEntity<byte[]> getReceiptImage(Long id) {
+        PaymentRecord payment = paymentRecordRepository.findById(id)
+                .orElseThrow(() -> new co.edu.sena.productsreact.exception.ResourceNotFoundException("Pedido no encontrado"));
+
+        if (payment.getExternalPaymentId() == null) {
+            throw new co.edu.sena.productsreact.exception.ResourceNotFoundException("Este pedido no tiene comprobante registrado en la pasarela");
+        }
+
+        return pasarelaGatewayService.descargarComprobante(payment.getExternalPaymentId());
+    }
+
+    @Transactional(readOnly = true)
     public java.util.List<PaymentRecord> getOrdersByEmail(String email) {
         return paymentRecordRepository.findByCustomerEmailOrderByCreatedAtDesc(email);
     }
