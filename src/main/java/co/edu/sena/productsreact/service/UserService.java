@@ -60,27 +60,27 @@ public class UserService {
     }
 
     @Transactional
-    public UserDto updateProfile(String currentUsername, String newUsername, String email) {
-        User user = userRepository.findByUsername(currentUsername)
+    public UserDto updateProfile(String currentEmail, String newUsername, String newEmail) {
+        User user = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        if (!currentUsername.equals(newUsername) && userRepository.findByUsername(newUsername).isPresent()) {
-            throw new IllegalArgumentException("El nombre de usuario ya está en uso");
-        }
-
-        if (!user.getEmail().equals(email) && userRepository.findByEmail(email).isPresent()) {
+        if (!currentEmail.equals(newEmail) && userRepository.findByEmail(newEmail).isPresent()) {
             throw new IllegalArgumentException("El email ya está registrado");
         }
 
+        if (!user.getUsername().equals(newUsername) && userRepository.findByUsername(newUsername).isPresent()) {
+            throw new IllegalArgumentException("El nombre de usuario ya está en uso");
+        }
+
         user.setUsername(newUsername);
-        user.setEmail(email);
+        user.setEmail(newEmail);
         User updated = userRepository.save(user);
         return new UserDto(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getRole().name(), updated.getAvatarUrl());
     }
 
     @Transactional
-    public void changePassword(String username, String currentPassword, String newPassword) {
-        User user = userRepository.findByUsername(username)
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
@@ -92,8 +92,8 @@ public class UserService {
     }
 
     @Transactional
-    public UserDto uploadAvatar(String username, MultipartFile file) throws IOException {
-        User user = userRepository.findByUsername(username)
+    public UserDto uploadAvatar(String email, MultipartFile file) throws IOException {
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         if (file == null || file.isEmpty()) {
