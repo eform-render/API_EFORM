@@ -51,6 +51,9 @@ public class PaymentRecord {
     @Column(name = "external_payment_id", length = 100)
     private String externalPaymentId;
 
+    @Column(name = "receipt_image_url", length = 500)
+    private String receiptImageUrl;
+
     public PaymentRecord() {
     }
 
@@ -169,5 +172,13 @@ public class PaymentRecord {
 
     public void setExternalPaymentId(String externalPaymentId) {
         this.externalPaymentId = externalPaymentId;
+    }
+
+    public String getReceiptImageUrl() {
+        return receiptImageUrl;
+    }
+
+    public void setReceiptImageUrl(String receiptImageUrl) {
+        this.receiptImageUrl = receiptImageUrl;
     }
 }

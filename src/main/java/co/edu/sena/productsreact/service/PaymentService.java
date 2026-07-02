@@ -3,10 +3,15 @@ package co.edu.sena.productsreact.service;
 import co.edu.sena.productsreact.dto.payment.PaymentRequest;
 import co.edu.sena.productsreact.entity.PaymentRecord;
 import co.edu.sena.productsreact.repository.PaymentRecordRepository;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
+import java.util.UUID;
 
 import static co.edu.sena.productsreact.util.AppClock.nowBogota;
 
@@ -22,6 +27,7 @@ public class PaymentService {
     private final PaymentReferenceService paymentReferenceService;
     private final PaymentConfirmationMailService paymentConfirmationMailService;
     private final PasarelaGatewayService pasarelaGatewayService;
+    private final Cloudinary cloudinary;
 
     @Transactional
     public PaymentRecord save(PaymentRequest request, MultipartFile comprobante) {
@@ -75,6 +81,19 @@ public class PaymentService {
                 log.warn("Metodo de pago {} requiere comprobante pero no se recibio ninguno para orden={}",
                         request.paymentMethod(), saved.getId());
             } else {
+                // Guardamos una copia propia y persistente del comprobante en Cloudinary,
+                // independiente de la pasarela externa, para que el admin siempre pueda verlo.
+                try {
+                    Map<?, ?> uploadResult = cloudinary.uploader().upload(comprobante.getBytes(), ObjectUtils.asMap(
+                            "public_id", "recibos/recibo_" + saved.getId() + "_" + UUID.randomUUID(),
+                            "overwrite", true,
+                            "resource_type", "image"
+                    ));
+                    saved.setReceiptImageUrl((String) uploadResult.get("secure_url"));
+                } catch (Exception e) {
+                    log.error("Error guardando comprobante en Cloudinary para orden={}: {}", saved.getId(), e.getMessage(), e);
+                }
+
                 String externalId = pasarelaGatewayService.crearPago(
                         saved.getId(),
                         request.paymentMethod(),
@@ -84,8 +103,9 @@ public class PaymentService {
                 );
                 if (externalId != null) {
                     saved.setExternalPaymentId(externalId);
-                    saved = paymentRecordRepository.save(saved);
                 }
+
+                saved = paymentRecordRepository.save(saved);
             }
         }
 
