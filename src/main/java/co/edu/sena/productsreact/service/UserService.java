@@ -11,6 +11,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,12 +26,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    private static final String UPLOADS_DIR = "uploads/";
+    private static final String UPLOADS_DIR = "uploads";
 
     public List<UserDto> getAllUsers() {
         return userRepository.findAll().stream()
@@ -93,21 +97,29 @@ public class UserService {
 
     @Transactional
     public UserDto uploadAvatar(String email, MultipartFile file) throws IOException {
+        log.info("Iniciando carga de avatar para usuario: {}", email);
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+                .orElseThrow(() -> {
+                    log.error("Usuario no encontrado: {}", email);
+                    return new ResourceNotFoundException("Usuario no encontrado");
+                });
 
         if (file == null || file.isEmpty()) {
+            log.warn("Archivo vacío para usuario: {}", email);
             throw new IllegalArgumentException("El archivo está vacío");
         }
 
         long fileSizeInMB = file.getSize() / (1024 * 1024);
         if (fileSizeInMB > 5) {
+            log.warn("Archivo demasiado grande para usuario {}: {}MB", email, fileSizeInMB);
             throw new IllegalArgumentException("El archivo no puede exceder 5MB");
         }
 
         String[] allowedExtensions = {"jpg", "jpeg", "png", "gif"};
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.lastIndexOf(".") == -1) {
+            log.warn("Nombre de archivo inválido para usuario: {}", email);
             throw new IllegalArgumentException("Nombre de archivo inválido");
         }
 
@@ -121,30 +133,38 @@ public class UserService {
         }
 
         if (!isAllowed) {
+            log.warn("Formato no permitido para usuario {}: {}", email, fileExtension);
             throw new IllegalArgumentException("Formato de archivo no permitido. Use: JPG, PNG, GIF");
         }
 
         try {
-            // Crear directorio si no existe (con todos los directorios padres)
+            // Crear directorio si no existe
             Path uploadsPath = Paths.get(UPLOADS_DIR).toAbsolutePath();
+            log.debug("Ruta de uploads: {}", uploadsPath);
+
             if (!Files.exists(uploadsPath)) {
+                log.info("Creando directorio de uploads: {}", uploadsPath);
                 Files.createDirectories(uploadsPath);
             }
 
             // Generar nombre único para el archivo
             String fileName = "avatar_" + user.getId() + "_" + UUID.randomUUID() + "." + fileExtension;
             Path filePath = uploadsPath.resolve(fileName);
+            log.info("Guardando archivo en: {}", filePath);
 
             // Guardar archivo
             Files.write(filePath, file.getBytes());
+            log.info("Archivo guardado exitosamente: {}", filePath);
 
             // Actualizar URL del avatar
             String avatarUrl = "/uploads/" + fileName;
             user.setAvatarUrl(avatarUrl);
             User updated = userRepository.save(user);
+            log.info("Avatar actualizado para usuario {}: {}", email, avatarUrl);
 
             return new UserDto(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getRole().name(), updated.getAvatarUrl());
         } catch (IOException e) {
+            log.error("Error al guardar la imagen para usuario {}: {}", email, e.getMessage(), e);
             throw new RuntimeException("Error al guardar la imagen: " + e.getMessage(), e);
         }
     }
