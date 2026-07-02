@@ -27,7 +27,10 @@ public class ReservationCleanupService {
     @Transactional
     public void cleanupExpiredReservations() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(ttlMinutes);
-        List<Reservation> expired = reservationRepository.findByCreatedAtBefore(cutoff);
+        // Solo se limpian reservas sin pago asociado (carritos/checkouts abandonados).
+        // Las reservas ya vinculadas a un pago (payment != null) son el historial
+        // de productos del pedido y no deben eliminarse nunca.
+        List<Reservation> expired = reservationRepository.findByCreatedAtBeforeAndPaymentIsNull(cutoff);
         for (Reservation r : expired) {
             Product p = r.getProduct();
             int current = p.getStock() == null ? 0 : p.getStock();
