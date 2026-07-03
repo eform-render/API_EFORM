@@ -2,16 +2,13 @@ package co.edu.sena.productsreact.service;
 
 import co.edu.sena.productsreact.dto.payment.PaymentRequest;
 import co.edu.sena.productsreact.entity.PaymentRecord;
+import co.edu.sena.productsreact.event.ComprobanteUploadRequestedEvent;
 import co.edu.sena.productsreact.repository.PaymentRecordRepository;
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Map;
-import java.util.UUID;
 
 import static co.edu.sena.productsreact.util.AppClock.nowBogota;
 
@@ -27,8 +24,8 @@ public class PaymentService {
     private final PaymentReferenceService paymentReferenceService;
     private final PaymentConfirmationMailService paymentConfirmationMailService;
     private final PasarelaGatewayService pasarelaGatewayService;
-    private final Cloudinary cloudinary;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public PaymentRecord save(PaymentRequest request, MultipartFile comprobante) {
@@ -58,7 +55,7 @@ public class PaymentService {
 
         // Vincular items del carrito con este pago
         if (request.items() != null && !request.items().isEmpty()) {
-            for (var item : request.items()) {
+            var reservations = request.items().stream().map(item -> {
                 var reservation = new co.edu.sena.productsreact.entity.Reservation();
                 var product = new co.edu.sena.productsreact.entity.Product();
                 product.setId(item.productId());
@@ -68,12 +65,13 @@ public class PaymentService {
                 reservation.setPayment(saved);
                 reservation.setCreatedAt(nowBogota());
                 reservation.setReservedBy(request.customerEmail());
-
-                reservationRepository.save(reservation);
-            }
+                return reservation;
+            }).toList();
+            reservationRepository.saveAll(reservations);
         }
 
         if (saved.getPaymentReferenceCode() != null) {
+            // Async: no bloquea la respuesta del checkout esperando a Brevo.
             paymentConfirmationMailService.sendPaymentConfirmation(saved);
         }
 
@@ -82,31 +80,24 @@ public class PaymentService {
                 log.warn("Metodo de pago {} requiere comprobante pero no se recibio ninguno para orden={}",
                         request.paymentMethod(), saved.getId());
             } else {
-                // Guardamos una copia propia y persistente del comprobante en Cloudinary,
-                // independiente de la pasarela externa, para que el admin siempre pueda verlo.
+                // La subida a Cloudinary y el registro en la pasarela externa son llamadas HTTP
+                // lentas; se publican como evento y se procesan en segundo plano (ver
+                // PaymentAsyncService) despues de confirmada esta transaccion, para que el
+                // cliente no tenga que esperarlas al pagar.
                 try {
-                    Map<?, ?> uploadResult = cloudinary.uploader().upload(comprobante.getBytes(), ObjectUtils.asMap(
-                            "public_id", "recibos/recibo_" + saved.getId() + "_" + UUID.randomUUID(),
-                            "overwrite", true,
-                            "resource_type", "image"
+                    byte[] fileBytes = comprobante.getBytes();
+                    eventPublisher.publishEvent(new ComprobanteUploadRequestedEvent(
+                            saved.getId(),
+                            request.paymentMethod(),
+                            request.amount(),
+                            request.customerEmail(),
+                            fileBytes,
+                            comprobante.getContentType(),
+                            comprobante.getOriginalFilename()
                     ));
-                    saved.setReceiptImageUrl((String) uploadResult.get("secure_url"));
-                } catch (Exception e) {
-                    log.error("Error guardando comprobante en Cloudinary para orden={}: {}", saved.getId(), e.getMessage(), e);
+                } catch (java.io.IOException e) {
+                    log.error("No se pudo leer el comprobante para orden={}: {}", saved.getId(), e.getMessage(), e);
                 }
-
-                String externalId = pasarelaGatewayService.crearPago(
-                        saved.getId(),
-                        request.paymentMethod(),
-                        request.amount(),
-                        request.customerEmail(),
-                        comprobante
-                );
-                if (externalId != null) {
-                    saved.setExternalPaymentId(externalId);
-                }
-
-                saved = paymentRecordRepository.save(saved);
             }
         }
 
