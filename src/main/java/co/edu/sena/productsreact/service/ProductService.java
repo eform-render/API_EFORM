@@ -19,8 +19,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductService {
 
+    private static final int LOW_STOCK_THRESHOLD = 5;
+
     private final ProductRepository productRepository;
     private final ReservationRepository reservationRepository;
+    private final NotificationService notificationService;
 
     /**
      * Obtener lista de productos activos
@@ -140,8 +143,19 @@ public class ProductService {
         Reservation r = new Reservation(product, quantity, co.edu.sena.productsreact.util.AppClock.nowBogota(), sessionId, reservedBy);
         reservationRepository.save(r);
 
-        product.setStock(current - quantity);
+        int newStock = current - quantity;
+        product.setStock(newStock);
         productRepository.save(product);
+
+        // Notificar a los admins solo al cruzar el umbral de stock bajo (evita spam en cada reserva)
+        if (current > LOW_STOCK_THRESHOLD && newStock <= LOW_STOCK_THRESHOLD) {
+            notificationService.notifyAdmins(
+                    "STOCK_BAJO",
+                    "Stock bajo",
+                    "El producto \"" + product.getNombre() + "\" quedo con " + newStock + " unidades disponibles",
+                    product.getId()
+            );
+        }
     }
 
     @Transactional

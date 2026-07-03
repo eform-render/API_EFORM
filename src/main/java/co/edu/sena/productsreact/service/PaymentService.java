@@ -28,6 +28,7 @@ public class PaymentService {
     private final PaymentConfirmationMailService paymentConfirmationMailService;
     private final PasarelaGatewayService pasarelaGatewayService;
     private final Cloudinary cloudinary;
+    private final NotificationService notificationService;
 
     @Transactional
     public PaymentRecord save(PaymentRequest request, MultipartFile comprobante) {
@@ -108,6 +109,13 @@ public class PaymentService {
                 saved = paymentRecordRepository.save(saved);
             }
         }
+
+        notificationService.notifyAdmins(
+                "NUEVO_PEDIDO",
+                "Nuevo pedido recibido",
+                "Pedido #" + saved.getId() + " de " + saved.getCustomerName() + " por $" + String.format("%,.0f", saved.getAmount()) + " via " + saved.getPaymentMethod(),
+                saved.getId()
+        );
 
         return saved;
     }

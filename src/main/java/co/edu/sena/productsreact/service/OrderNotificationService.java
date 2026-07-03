@@ -27,6 +27,9 @@ public class OrderNotificationService {
     @Autowired
     private InvoiceMailService invoiceMailService;
 
+    @Autowired
+    private NotificationService notificationService;
+
     @Value("${app.mail.from:noreply@eform.com}")
     private String fromAddress;
 
@@ -35,6 +38,15 @@ public class OrderNotificationService {
 
     public void notifyOrderStatusChange(PaymentRecord payment) {
         log.info("Iniciando notificación de cambio de estado para payment={}, status={}", payment.getId(), payment.getStatus());
+
+        String statusLabelForNotification = getStatusLabel(payment.getStatus());
+        notificationService.notifyClient(
+                payment.getCustomerEmail(),
+                "CAMBIO_ESTADO_PEDIDO",
+                "Tu pedido #" + payment.getId() + " cambio de estado",
+                "Nuevo estado: " + statusLabelForNotification,
+                payment.getId()
+        );
 
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
             log.warn("BREVO API KEY no configurado. Email no enviado para payment={}", payment.getId());
