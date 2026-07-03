@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +58,8 @@ public class PasarelaGatewayService {
      * Crea un pago en la pasarela externa con el comprobante adjunto.
      * Devuelve el id (UUID) del pago creado alla, o null si no se pudo crear.
      */
-    public String crearPago(Long ordenId, String paymentMethod, Double amount, String customerEmail, MultipartFile comprobante) {
+    public String crearPago(Long ordenId, String paymentMethod, Double amount, String customerEmail,
+                             byte[] comprobanteBytes, String comprobanteContentType, String comprobanteFilename) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("PASARELA_API_KEY no configurado. No se registrara el pago en la pasarela externa para orden={}", ordenId);
             return null;
@@ -82,12 +82,12 @@ public class PasarelaGatewayService {
 
             HttpHeaders fileHeaders = new HttpHeaders();
             fileHeaders.setContentType(MediaType.parseMediaType(
-                    comprobante.getContentType() != null ? comprobante.getContentType() : MediaType.IMAGE_JPEG_VALUE));
+                    comprobanteContentType != null ? comprobanteContentType : MediaType.IMAGE_JPEG_VALUE));
             HttpEntity<ByteArrayResource> imagenPart = new HttpEntity<>(
-                    new ByteArrayResource(comprobante.getBytes()) {
+                    new ByteArrayResource(comprobanteBytes) {
                         @Override
                         public String getFilename() {
-                            return comprobante.getOriginalFilename();
+                            return comprobanteFilename;
                         }
                     },
                     fileHeaders
