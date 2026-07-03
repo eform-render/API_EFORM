@@ -31,6 +31,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final PasswordResetTokenService passwordResetTokenService;
     private final PasswordResetMailService passwordResetMailService;
+    private final NotificationService notificationService;
 
     /**
      * Registrar nuevo usuario
@@ -88,6 +89,15 @@ public class AuthService {
         User loggedUser = userRepository.findByEmail(request.email())
                 .or(() -> userRepository.findByUsername(request.email()))
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado despues de autenticar."));
+
+        if (loggedUser.getRole() == Role.ROLE_ADMIN) {
+            notificationService.notifyAdmins(
+                    "LOGIN_ADMIN",
+                    "Inicio de sesion de administrador",
+                    loggedUser.getUsername() + " (" + loggedUser.getEmail() + ") inicio sesion",
+                    loggedUser.getId()
+            );
+        }
 
         return new AuthResponse(
                 token,

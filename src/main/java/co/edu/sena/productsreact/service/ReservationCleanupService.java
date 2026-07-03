@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static co.edu.sena.productsreact.util.AppClock.nowBogota;
+
 @Service
 @RequiredArgsConstructor
 public class ReservationCleanupService {
@@ -26,8 +28,11 @@ public class ReservationCleanupService {
     @Scheduled(fixedDelayString = "${app.reservation.cleanup-ms:60000}")
     @Transactional
     public void cleanupExpiredReservations() {
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(ttlMinutes);
-        List<Reservation> expired = reservationRepository.findByCreatedAtBefore(cutoff);
+        LocalDateTime cutoff = nowBogota().minusMinutes(ttlMinutes);
+        // Solo se limpian reservas sin pago asociado (carritos/checkouts abandonados).
+        // Las reservas ya vinculadas a un pago (payment != null) son el historial
+        // de productos del pedido y no deben eliminarse nunca.
+        List<Reservation> expired = reservationRepository.findByCreatedAtBeforeAndPaymentIsNull(cutoff);
         for (Reservation r : expired) {
             Product p = r.getProduct();
             int current = p.getStock() == null ? 0 : p.getStock();

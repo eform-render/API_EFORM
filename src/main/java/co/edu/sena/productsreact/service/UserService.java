@@ -5,6 +5,8 @@ import co.edu.sena.productsreact.entity.Role;
 import co.edu.sena.productsreact.entity.User;
 import co.edu.sena.productsreact.exception.ResourceNotFoundException;
 import co.edu.sena.productsreact.repository.UserRepository;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,10 +17,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -29,11 +29,10 @@ public class UserService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
+    private final Cloudinary cloudinary;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    private static final String UPLOADS_DIR = "uploads";
 
     public List<UserDto> getAllUsers() {
         return userRepository.findAll().stream()
@@ -138,33 +137,23 @@ public class UserService {
         }
 
         try {
-            // Crear directorio si no existe
-            Path uploadsPath = Paths.get(UPLOADS_DIR).toAbsolutePath();
-            log.debug("Ruta de uploads: {}", uploadsPath);
+            String publicId = "avatars/avatar_" + user.getId() + "_" + UUID.randomUUID();
+            log.info("Subiendo avatar a Cloudinary con public_id: {}", publicId);
 
-            if (!Files.exists(uploadsPath)) {
-                log.info("Creando directorio de uploads: {}", uploadsPath);
-                Files.createDirectories(uploadsPath);
-            }
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
+                    "public_id", publicId,
+                    "overwrite", true,
+                    "resource_type", "image"
+            ));
 
-            // Generar nombre único para el archivo
-            String fileName = "avatar_" + user.getId() + "_" + UUID.randomUUID() + "." + fileExtension;
-            Path filePath = uploadsPath.resolve(fileName);
-            log.info("Guardando archivo en: {}", filePath);
-
-            // Guardar archivo
-            Files.write(filePath, file.getBytes());
-            log.info("Archivo guardado exitosamente: {}", filePath);
-
-            // Actualizar URL del avatar
-            String avatarUrl = "/uploads/" + fileName;
+            String avatarUrl = (String) uploadResult.get("secure_url");
             user.setAvatarUrl(avatarUrl);
             User updated = userRepository.save(user);
             log.info("Avatar actualizado para usuario {}: {}", email, avatarUrl);
 
             return new UserDto(updated.getId(), updated.getUsername(), updated.getEmail(), updated.getRole().name(), updated.getAvatarUrl());
         } catch (IOException e) {
-            log.error("Error al guardar la imagen para usuario {}: {}", email, e.getMessage(), e);
+            log.error("Error al subir la imagen a Cloudinary para usuario {}: {}", email, e.getMessage(), e);
             throw new RuntimeException("Error al guardar la imagen: " + e.getMessage(), e);
         }
     }

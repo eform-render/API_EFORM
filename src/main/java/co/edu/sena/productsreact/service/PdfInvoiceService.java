@@ -4,6 +4,7 @@ import co.edu.sena.productsreact.entity.PaymentRecord;
 import co.edu.sena.productsreact.entity.Reservation;
 import co.edu.sena.productsreact.repository.ReservationRepository;
 import com.itextpdf.io.font.constants.StandardFonts;
+import com.itextpdf.io.image.ImageDataFactory;
 import com.itextpdf.kernel.font.PdfFont;
 import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.geom.PageSize;
@@ -12,16 +13,19 @@ import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.element.Cell;
+import com.itextpdf.layout.element.Image;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.DecimalFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -80,10 +84,18 @@ public class PdfInvoiceService {
         Table headerTable = new Table(UnitValue.createPercentArray(new float[]{20, 40, 40}));
         headerTable.setWidth(UnitValue.createPercentValue(100));
 
-        // Logo placeholder (E-FORM)
-        Cell logoCell = new Cell()
-                .add(new Paragraph("E-FORM").setFont(boldFont).setFontSize(24).setTextAlignment(TextAlignment.CENTER))
-                .setBorder(Border.NO_BORDER);
+        // Logo de la empresa
+        Cell logoCell = new Cell().setBorder(Border.NO_BORDER);
+        try (InputStream logoStream = new ClassPathResource("static/images/logo.jpeg").getInputStream()) {
+            byte[] logoBytes = logoStream.readAllBytes();
+            Image logo = new Image(ImageDataFactory.create(logoBytes));
+            logo.setWidth(60);
+            logo.setHeight(60);
+            logo.setHorizontalAlignment(HorizontalAlignment.CENTER);
+            logoCell.add(logo);
+        } catch (IOException e) {
+            logoCell.add(new Paragraph("E-FORM").setFont(boldFont).setFontSize(24).setTextAlignment(TextAlignment.CENTER));
+        }
         headerTable.addCell(logoCell);
 
         // Nombre empresa

@@ -6,10 +6,12 @@ import co.edu.sena.productsreact.service.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/payments")
@@ -18,9 +20,17 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> confirmPayment(@Valid @RequestBody PaymentRequest request) {
-        paymentService.save(request);
+        paymentService.save(request, null);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Void> confirmPaymentWithReceipt(
+            @Valid @RequestPart("datos") PaymentRequest request,
+            @RequestPart(value = "comprobante", required = false) MultipartFile comprobante) {
+        paymentService.save(request, comprobante);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -50,7 +60,13 @@ public class PaymentController {
     public ResponseEntity<co.edu.sena.productsreact.entity.PaymentRecord> updatePaymentStatus(
             @PathVariable Long id,
             @Valid @RequestBody co.edu.sena.productsreact.dto.payment.UpdatePaymentStatusRequest request) {
-        var updated = paymentService.updateStatus(id, request.status(), request.observation());
+        var updated = paymentService.updateStatus(
+                id,
+                request.status(),
+                request.observation(),
+                request.estimatedDeliveryDate(),
+                request.estimatedDeliveryTime()
+        );
         return ResponseEntity.ok(updated);
     }
 
@@ -69,5 +85,11 @@ public class PaymentController {
             @AuthenticationPrincipal UserDetails userDetails) {
         var orderDetails = paymentService.getOrderDetails(id, userDetails.getUsername());
         return ResponseEntity.ok(orderDetails);
+    }
+
+    @GetMapping("/{id}/receipt")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<byte[]> getReceiptImage(@PathVariable Long id) {
+        return paymentService.getReceiptImage(id);
     }
 }

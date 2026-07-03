@@ -3,11 +3,17 @@ package co.edu.sena.productsreact.service;
 import co.edu.sena.productsreact.dto.payment.PaymentRequest;
 import co.edu.sena.productsreact.entity.PaymentRecord;
 import co.edu.sena.productsreact.repository.PaymentRecordRepository;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.UUID;
+
+import static co.edu.sena.productsreact.util.AppClock.nowBogota;
 
 @Service
 @RequiredArgsConstructor
@@ -20,15 +26,18 @@ public class PaymentService {
     private final OrderNotificationService orderNotificationService;
     private final PaymentReferenceService paymentReferenceService;
     private final PaymentConfirmationMailService paymentConfirmationMailService;
+    private final PasarelaGatewayService pasarelaGatewayService;
+    private final Cloudinary cloudinary;
+    private final NotificationService notificationService;
 
     @Transactional
-    public PaymentRecord save(PaymentRequest request) {
+    public PaymentRecord save(PaymentRequest request, MultipartFile comprobante) {
         PaymentRecord record = new PaymentRecord(
                 request.customerName(),
                 request.customerEmail(),
                 request.paymentMethod(),
                 request.amount(),
-                LocalDateTime.now()
+                nowBogota()
         );
 
         // Establecer método de entrega y costo de domicilio
@@ -57,7 +66,7 @@ public class PaymentService {
                 reservation.setProduct(product);
                 reservation.setQuantity(item.quantity());
                 reservation.setPayment(saved);
-                reservation.setCreatedAt(LocalDateTime.now());
+                reservation.setCreatedAt(nowBogota());
                 reservation.setReservedBy(request.customerEmail());
 
                 reservationRepository.save(reservation);
@@ -67,6 +76,46 @@ public class PaymentService {
         if (saved.getPaymentReferenceCode() != null) {
             paymentConfirmationMailService.sendPaymentConfirmation(saved);
         }
+
+        if (pasarelaGatewayService.requiereComprobante(request.paymentMethod())) {
+            if (comprobante == null || comprobante.isEmpty()) {
+                log.warn("Metodo de pago {} requiere comprobante pero no se recibio ninguno para orden={}",
+                        request.paymentMethod(), saved.getId());
+            } else {
+                // Guardamos una copia propia y persistente del comprobante en Cloudinary,
+                // independiente de la pasarela externa, para que el admin siempre pueda verlo.
+                try {
+                    Map<?, ?> uploadResult = cloudinary.uploader().upload(comprobante.getBytes(), ObjectUtils.asMap(
+                            "public_id", "recibos/recibo_" + saved.getId() + "_" + UUID.randomUUID(),
+                            "overwrite", true,
+                            "resource_type", "image"
+                    ));
+                    saved.setReceiptImageUrl((String) uploadResult.get("secure_url"));
+                } catch (Exception e) {
+                    log.error("Error guardando comprobante en Cloudinary para orden={}: {}", saved.getId(), e.getMessage(), e);
+                }
+
+                String externalId = pasarelaGatewayService.crearPago(
+                        saved.getId(),
+                        request.paymentMethod(),
+                        request.amount(),
+                        request.customerEmail(),
+                        comprobante
+                );
+                if (externalId != null) {
+                    saved.setExternalPaymentId(externalId);
+                }
+
+                saved = paymentRecordRepository.save(saved);
+            }
+        }
+
+        notificationService.notifyAdmins(
+                "NUEVO_PEDIDO",
+                "Nuevo pedido recibido",
+                "Pedido #" + saved.getId() + " de " + saved.getCustomerName() + " por $" + String.format("%,.0f", saved.getAmount()) + " via " + saved.getPaymentMethod(),
+                saved.getId()
+        );
 
         return saved;
     }
@@ -101,19 +150,52 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentRecord updateStatus(Long id, String newStatus, String observation) {
+    public PaymentRecord updateStatus(
+            Long id,
+            String newStatus,
+            String observation,
+            java.time.LocalDate estimatedDeliveryDate,
+            String estimatedDeliveryTime
+    ) {
         PaymentRecord payment = paymentRecordRepository.findById(id)
                 .orElseThrow(() -> new co.edu.sena.productsreact.exception.ResourceNotFoundException("Pedido no encontrado"));
         payment.setStatus(newStatus);
         if (observation != null && !observation.isBlank()) {
             payment.setObservation(observation);
         }
+        if (estimatedDeliveryDate != null) {
+            payment.setEstimatedDeliveryDate(estimatedDeliveryDate);
+        }
+        if (estimatedDeliveryTime != null && !estimatedDeliveryTime.isBlank()) {
+            payment.setEstimatedDeliveryTime(estimatedDeliveryTime);
+        }
         PaymentRecord updated = paymentRecordRepository.save(payment);
+
+        // Sincronizar con la pasarela externa si el pago se creo alla
+        if (updated.getExternalPaymentId() != null) {
+            if ("CONFIRMADO".equals(newStatus)) {
+                pasarelaGatewayService.aprobarPago(updated.getExternalPaymentId());
+            } else if ("CANCELADO".equals(newStatus)) {
+                pasarelaGatewayService.rechazarPago(updated.getExternalPaymentId());
+            }
+        }
 
         // Enviar email de notificación
         orderNotificationService.notifyOrderStatusChange(updated);
 
         return updated;
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.http.ResponseEntity<byte[]> getReceiptImage(Long id) {
+        PaymentRecord payment = paymentRecordRepository.findById(id)
+                .orElseThrow(() -> new co.edu.sena.productsreact.exception.ResourceNotFoundException("Pedido no encontrado"));
+
+        if (payment.getExternalPaymentId() == null) {
+            throw new co.edu.sena.productsreact.exception.ResourceNotFoundException("Este pedido no tiene comprobante registrado en la pasarela");
+        }
+
+        return pasarelaGatewayService.descargarComprobante(payment.getExternalPaymentId());
     }
 
     @Transactional(readOnly = true)
