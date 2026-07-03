@@ -147,8 +147,17 @@ public class ProductService {
         product.setStock(newStock);
         productRepository.save(product);
 
-        // Notificar a los admins solo al cruzar el umbral de stock bajo (evita spam en cada reserva)
-        if (current > LOW_STOCK_THRESHOLD && newStock <= LOW_STOCK_THRESHOLD) {
+        // Producto agotado por completo: siempre se notifica, sin importar si ya hubo
+        // una alerta de stock bajo antes (es un evento mas urgente y distinto).
+        if (newStock == 0 && current > 0) {
+            notificationService.notifyAdmins(
+                    "PRODUCTO_AGOTADO",
+                    "Producto agotado",
+                    "El producto \"" + product.getNombre() + "\" se agoto por completo (0 unidades)",
+                    product.getId()
+            );
+        } else if (current > LOW_STOCK_THRESHOLD && newStock <= LOW_STOCK_THRESHOLD) {
+            // Notificar a los admins solo al cruzar el umbral de stock bajo (evita spam en cada reserva)
             notificationService.notifyAdmins(
                     "STOCK_BAJO",
                     "Stock bajo",
