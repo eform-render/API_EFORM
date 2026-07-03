@@ -54,6 +54,12 @@ public class PaymentRecord {
     @Column(name = "receipt_image_url", length = 500)
     private String receiptImageUrl;
 
+    // Copia fija (snapshot) en JSON de los productos del pedido al momento de la compra.
+    // No depende de la tabla de reservas, que puede perder el vinculo por otras causas
+    // (limpieza automatica, ajustes de stock, etc.).
+    @Column(name = "items_json", columnDefinition = "TEXT")
+    private String itemsJson;
+
     public PaymentRecord() {
     }
 
@@ -180,5 +186,13 @@ public class PaymentRecord {
 
     public void setReceiptImageUrl(String receiptImageUrl) {
         this.receiptImageUrl = receiptImageUrl;
+    }
+
+    public String getItemsJson() {
+        return itemsJson;
+    }
+
+    public void setItemsJson(String itemsJson) {
+        this.itemsJson = itemsJson;
     }
 }

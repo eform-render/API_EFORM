@@ -3,6 +3,7 @@ package co.edu.sena.productsreact.service;
 import co.edu.sena.productsreact.entity.PaymentRecord;
 import co.edu.sena.productsreact.entity.Reservation;
 import co.edu.sena.productsreact.repository.ReservationRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.io.font.constants.StandardFonts;
 import com.itextpdf.io.image.ImageDataFactory;
 import com.itextpdf.kernel.font.PdfFont;
@@ -29,12 +30,53 @@ import java.io.InputStream;
 import java.text.DecimalFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PdfInvoiceService {
 
     @Autowired
     private ReservationRepository reservationRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private record InvoiceItem(String nombre, int cantidad, double precioUnitario) {
+    }
+
+    /**
+     * Obtiene los items de la factura desde el snapshot guardado en el pedido
+     * (no depende de la tabla de reservas). Si el pedido es anterior a la
+     * implementacion del snapshot, recurre a las reservas como respaldo.
+     */
+    private List<InvoiceItem> getInvoiceItems(PaymentRecord payment) {
+        if (payment.getItemsJson() != null && !payment.getItemsJson().isBlank()) {
+            try {
+                List<Map<String, Object>> raw = objectMapper.readValue(
+                        payment.getItemsJson(),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+                );
+                return raw.stream()
+                        .map(map -> new InvoiceItem(
+                                (String) map.get("productName"),
+                                ((Number) map.get("quantity")).intValue(),
+                                ((Number) map.get("unitPrice")).doubleValue()
+                        ))
+                        .toList();
+            } catch (Exception ignored) {
+                // si falla la lectura del snapshot, se recurre a las reservas abajo
+            }
+        }
+
+        List<Reservation> reservations = reservationRepository.findByPaymentId(payment.getId());
+        return reservations.stream()
+                .map(r -> new InvoiceItem(
+                        r.getProduct().getNombre(),
+                        r.getQuantity(),
+                        r.getProduct().getPrecio().doubleValue()
+                ))
+                .toList();
+    }
 
     private static final String COMPANY_NAME = "E-FORM UNIFORMES SENA SAS";
     private static final String COMPANY_NIT = "900123456-7";
@@ -186,7 +228,7 @@ public class PdfInvoiceService {
     }
 
     private void addItemsTable(Document document, PaymentRecord payment, PdfFont boldFont, PdfFont regularFont) {
-        List<Reservation> items = reservationRepository.findByPaymentId(payment.getId());
+        List<InvoiceItem> items = getInvoiceItems(payment);
 
         Table itemsTable = new Table(UnitValue.createPercentArray(new float[]{10, 50, 10, 15, 15}));
         itemsTable.setWidth(UnitValue.createPercentValue(100));
@@ -203,17 +245,15 @@ public class PdfInvoiceService {
 
         // Items
         DecimalFormat df = new DecimalFormat("$#,##0");
-        double subtotal = 0;
         int itemNum = 1;
 
-        for (Reservation item : items) {
-            double unitPrice = item.getProduct().getPrecio().doubleValue();
-            double itemTotal = unitPrice * item.getQuantity();
-            subtotal += itemTotal;
+        for (InvoiceItem item : items) {
+            double unitPrice = item.precioUnitario();
+            double itemTotal = unitPrice * item.cantidad();
 
             itemsTable.addCell(new Cell().add(new Paragraph(String.valueOf(itemNum)).setFont(regularFont).setFontSize(9)));
-            itemsTable.addCell(new Cell().add(new Paragraph(item.getProduct().getNombre()).setFont(regularFont).setFontSize(9)));
-            itemsTable.addCell(new Cell().add(new Paragraph(String.valueOf(item.getQuantity())).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.CENTER)));
+            itemsTable.addCell(new Cell().add(new Paragraph(item.nombre()).setFont(regularFont).setFontSize(9)));
+            itemsTable.addCell(new Cell().add(new Paragraph(String.valueOf(item.cantidad())).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.CENTER)));
             itemsTable.addCell(new Cell().add(new Paragraph(df.format(unitPrice)).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.RIGHT)));
             itemsTable.addCell(new Cell().add(new Paragraph(df.format(itemTotal)).setFont(regularFont).setFontSize(9).setTextAlignment(TextAlignment.RIGHT)));
 
@@ -226,13 +266,13 @@ public class PdfInvoiceService {
     }
 
     private void addTotals(Document document, PaymentRecord payment, PdfFont boldFont, PdfFont regularFont) {
-        List<Reservation> items = reservationRepository.findByPaymentId(payment.getId());
+        List<InvoiceItem> items = getInvoiceItems(payment);
 
         DecimalFormat df = new DecimalFormat("$#,##0");
         double subtotal = 0;
 
-        for (Reservation item : items) {
-            subtotal += item.getProduct().getPrecio().doubleValue() * item.getQuantity();
+        for (InvoiceItem item : items) {
+            subtotal += item.precioUnitario() * item.cantidad();
         }
 
         double shippingCost = payment.getShippingCost() != null ? payment.getShippingCost() : 0.0;

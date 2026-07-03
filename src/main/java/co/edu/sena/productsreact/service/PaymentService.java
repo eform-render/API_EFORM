@@ -3,13 +3,17 @@ package co.edu.sena.productsreact.service;
 import co.edu.sena.productsreact.dto.payment.PaymentRequest;
 import co.edu.sena.productsreact.entity.PaymentRecord;
 import co.edu.sena.productsreact.repository.PaymentRecordRepository;
+import co.edu.sena.productsreact.repository.ProductRepository;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,12 +27,14 @@ public class PaymentService {
 
     private final PaymentRecordRepository paymentRecordRepository;
     private final co.edu.sena.productsreact.repository.ReservationRepository reservationRepository;
+    private final ProductRepository productRepository;
     private final OrderNotificationService orderNotificationService;
     private final PaymentReferenceService paymentReferenceService;
     private final PaymentConfirmationMailService paymentConfirmationMailService;
     private final PasarelaGatewayService pasarelaGatewayService;
     private final Cloudinary cloudinary;
     private final NotificationService notificationService;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public PaymentRecord save(PaymentRequest request, MultipartFile comprobante) {
@@ -56,7 +62,10 @@ public class PaymentService {
 
         PaymentRecord saved = paymentRecordRepository.save(record);
 
-        // Vincular items del carrito con este pago
+        // Vincular items del carrito con este pago y construir ademas una copia fija
+        // (snapshot en JSON) que no depende de la tabla de reservas para mostrar
+        // el detalle del pedido mas adelante (factura, historial de compras, etc.).
+        List<Map<String, Object>> itemsSnapshot = new ArrayList<>();
         if (request.items() != null && !request.items().isEmpty()) {
             for (var item : request.items()) {
                 var reservation = new co.edu.sena.productsreact.entity.Reservation();
@@ -70,7 +79,24 @@ public class PaymentService {
                 reservation.setReservedBy(request.customerEmail());
 
                 reservationRepository.save(reservation);
+
+                var fullProduct = productRepository.findById(item.productId()).orElse(null);
+                if (fullProduct != null) {
+                    Map<String, Object> snapshotItem = new java.util.LinkedHashMap<>();
+                    snapshotItem.put("productId", fullProduct.getId());
+                    snapshotItem.put("productName", fullProduct.getNombre());
+                    snapshotItem.put("quantity", item.quantity());
+                    snapshotItem.put("unitPrice", fullProduct.getPrecio());
+                    itemsSnapshot.add(snapshotItem);
+                }
             }
+        }
+
+        try {
+            saved.setItemsJson(objectMapper.writeValueAsString(itemsSnapshot));
+            saved = paymentRecordRepository.save(saved);
+        } catch (Exception e) {
+            log.error("Error guardando snapshot de items para orden={}: {}", saved.getId(), e.getMessage(), e);
         }
 
         if (saved.getPaymentReferenceCode() != null) {
@@ -212,17 +238,20 @@ public class PaymentService {
             throw new IllegalArgumentException("No tienes permiso para ver este pedido");
         }
 
-        var reservations = reservationRepository.findByPaymentId(paymentId);
+        java.util.List<co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO> items = itemsFromSnapshot(payment);
 
-        java.util.List<co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO> items =
-            reservations.stream()
-                .map(r -> new co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO(
-                    r.getProduct().getId(),
-                    r.getProduct().getNombre(),
-                    r.getQuantity(),
-                    r.getProduct().getPrecio().doubleValue()
-                ))
-                .toList();
+        if (items.isEmpty()) {
+            // Respaldo para pedidos creados antes de existir el snapshot en JSON
+            var reservations = reservationRepository.findByPaymentId(paymentId);
+            items = reservations.stream()
+                    .map(r -> new co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO(
+                        r.getProduct().getId(),
+                        r.getProduct().getNombre(),
+                        r.getQuantity(),
+                        r.getProduct().getPrecio().doubleValue()
+                    ))
+                    .toList();
+        }
 
         return new co.edu.sena.productsreact.dto.payment.OrderDetailsResponse(
             payment.getId(),
@@ -236,6 +265,29 @@ public class PaymentService {
             payment.getCreatedAt(),
             items
         );
+    }
+
+    private java.util.List<co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO> itemsFromSnapshot(PaymentRecord payment) {
+        if (payment.getItemsJson() == null || payment.getItemsJson().isBlank()) {
+            return List.of();
+        }
+        try {
+            List<Map<String, Object>> raw = objectMapper.readValue(
+                    payment.getItemsJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+            );
+            return raw.stream()
+                    .map(map -> new co.edu.sena.productsreact.dto.payment.OrderDetailsResponse.OrderItemDTO(
+                            ((Number) map.get("productId")).longValue(),
+                            (String) map.get("productName"),
+                            ((Number) map.get("quantity")).intValue(),
+                            ((Number) map.get("unitPrice")).doubleValue()
+                    ))
+                    .toList();
+        } catch (Exception e) {
+            log.error("Error leyendo snapshot de items para orden={}: {}", payment.getId(), e.getMessage(), e);
+            return List.of();
+        }
     }
 
 }
